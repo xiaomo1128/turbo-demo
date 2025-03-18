@@ -1,0 +1,25 @@
+{
+    "sources": [
+      {
+        "name": "UserApi",
+        "source": "https://api.example.com/users",
+        "lang": "typescript",
+        "outputDir": "models/users",
+        "headers": {
+          "Authorization": "Bearer YOUR_TOKEN"
+        }
+      },
+      {
+        "name": "ProductApi",
+        "source": "https://api.example.com/products",
+        "lang": "typescript",
+        "outputDir": "models/products"
+      },
+      {
+        "name": "LocalConfig",
+        "source": "./data/config.json",
+        "lang": "typescript",
+        "outputDir": "models/config"
+      }
+    ]
+  }

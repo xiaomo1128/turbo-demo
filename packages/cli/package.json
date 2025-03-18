@@ -1,0 +1,26 @@
+{
+  "name": "@test/trainxm-cli",
+  "version": "1.0.0",
+  "description": "CLI tool to generate types from JSON data",
+  "bin": {
+    "trainxm": "./bin/cli.js"
+  },
+  "keywords": [
+    "quicktype",
+    "cli",
+    "typescript",
+    "types"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@darkobits/lolcatjs": "^3.1.5",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "figlet": "^1.8.0",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1",
+    "quicktype-core": "^23.0.78",
+    "shelljs": "^0.8.5"
+  }
+}
