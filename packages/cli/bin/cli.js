@@ -1,261 +1,205 @@
 #!/usr/bin/env node
 
 const { program } = require('commander');
-const fs = require('fs');
 const path = require('path');
-const quicktype = require('quicktype-core');
-const chalk = require('chalk');
-const ora = require('ora');
-const https = require('https');
-const http = require('http');
+const fs = require('fs');
 const figlet = require('figlet');
-
-// Display ASCII art banner
-console.log(
-  chalk.cyan(
-    figlet.textSync('trainxm', { horizontalLayout: 'full' })
-  )
+const versionStr = figlet.textSync('Train XM');
+const Printer = require('@darkobits/lolcatjs');
+const version = require('../package.json').version;
+const ora = require('ora');
+const inquirer = require('inquirer');
+const chalk = require('chalk');
+const shell = require('shelljs');
+const transformed = Printer.fromString(
+  ` \n   ✨ turbo项目脚手架 ${version} ✨ \n ${versionStr}`
 );
+const {
+  quicktype,
+  InputData,
+  jsonInputForTargetLanguage,
+} = require('quicktype-core');
 
-program
-  .name('trainxm')
-  .description('CLI tool to generate types from JSON data')
-  .version('1.0.0');
+// 默认路径
+const desktopPath = path.join(require('os').homedir(), 'Desktop');
+const currentPath = process.cwd();
 
-program
-  .command('generate')
-  .description('Generate types from JSON source (file or URL)')
-  .requiredOption('-s, --source <source>', 'JSON source (local file path or URL)')
-  .option('-o, --output <directory>', 'Output directory for generated types', './types')
-  .option('-n, --name <n>', 'Name for the generated types', 'ApiTypes')
-  .option('-l, --lang <language>', 'Target language', 'typescript')
-  .option('-h, --headers <headers>', 'HTTP headers in JSON format (only for URL sources)', '{}')
-  .action(async (options) => {
-    const spinner = ora('Processing JSON data...').start();
-    try {
-      let jsonData;
-      
-      // Determine if source is a URL or a local file
-      if (options.source.startsWith('http://') || options.source.startsWith('https://')) {
-        // Parse headers if provided
-        const headers = JSON.parse(options.headers);
-        
-        // Fetch the JSON data from URL using native http/https
-        spinner.text = 'Fetching JSON from URL...';
-        jsonData = await fetchJsonFromUrl(options.source, headers);
-      } else {
-        // Read from local file
-        spinner.text = 'Reading local JSON file...';
-        const filePath = path.resolve(process.cwd(), options.source);
-        if (!fs.existsSync(filePath)) {
-          spinner.fail(`File not found: ${filePath}`);
-          process.exit(1);
-        }
-        jsonData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      }
-      
-      spinner.text = 'Generating types...';
-      
-      // Ensure output directory exists
-      if (!fs.existsSync(options.output)) {
-        fs.mkdirSync(options.output, { recursive: true });
-      }
-      
-      // Generate types with quicktype
-      const jsonInput = quicktype.jsonInputForTargetLanguage(options.lang);
-      await jsonInput.addSource({
-        name: options.name,
-        samples: [JSON.stringify(jsonData)]
-      });
-      
-      const inputData = new quicktype.InputData();
-      inputData.addInput(jsonInput);
-      
-      const qtOptions = {
-        lang: options.lang,
-        renderOptions: {
-          just_types: options.lang === 'typescript',
-          runtime_typecheck: true,
-        }
-      };
-      
-      const result = await quicktype.quicktype(inputData, qtOptions);
-      
-      // Write the generated types to a file
-      const outputFilename = path.join(
-        options.output, 
-        `${options.name}.${getFileExtension(options.lang)}`
-      );
-      fs.writeFileSync(outputFilename, result.lines.join('\n'));
-      
-      spinner.succeed(chalk.green(`Types generated successfully: ${outputFilename}`));
-    } catch (error) {
-      spinner.fail(chalk.red('Error generating types'));
-      console.error('Error:', error.message);
-      process.exit(1);
+// 检查是否安装了VSCode
+const hasVSCode = shell.which('code');
+
+/**
+ * 生成类型定义
+ */
+async function generateTypes(url, typeName) {
+  const spinner = ora('🚀 正在获取API数据...').start();
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`API请求失败: ${response.statusText}`);
     }
-  });
 
-program
-  .command('batch')
-  .description('Generate types from multiple JSON sources defined in a config file')
-  .requiredOption('-c, --config <file>', 'Config file path (JSON)')
-  .option('-o, --output <directory>', 'Base output directory for generated types', './types')
-  .action(async (options) => {
-    try {
-      // Read and parse config file
-      const configPath = path.resolve(process.cwd(), options.config);
-      if (!fs.existsSync(configPath)) {
-        console.error(chalk.red(`Config file not found: ${configPath}`));
-        process.exit(1);
-      }
-      
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      
-      if (!Array.isArray(config.sources)) {
-        console.error(chalk.red('Config file must contain a "sources" array'));
-        process.exit(1);
-      }
-      
-      // Process each source
-      for (const source of config.sources) {
-        const spinner = ora(`Processing ${source.name}...`).start();
-        
+    const jsonData = await response.json();
+    spinner.text = '🔄 正在解析数据结构...';
+
+    const sampleData = Array.isArray(jsonData) ? jsonData[0] : jsonData;
+
+    spinner.text = '📝 正在生成类型定义...';
+    const jsonInput = await jsonInputForTargetLanguage('typescript');
+    await jsonInput.addSource({
+      name: typeName,
+      samples: [JSON.stringify(sampleData)],
+    });
+
+    const inputData = new InputData();
+    inputData.addInput(jsonInput);
+
+    spinner.text = '🎨 正在优化类型结构...';
+    const { lines } = await quicktype({
+      lang: 'typescript',
+      inputData,
+      alphabetizeProperties: true,
+      rendererOptions: {
+        'just-types': 'true',
+        'explicit-unions': 'true',
+      },
+    });
+
+    spinner.succeed(chalk.green('✨ 太棒了！类型定义生成成功！'));
+
+    if (!lines || lines.length === 0) {
+      throw new Error('⚠️ 生成的类型为空，请检查API返回数据');
+    }
+
+    return { lines };
+  } catch (error) {
+    spinner.fail(chalk.red('❌ 处理失败'));
+    throw error;
+  }
+}
+
+async function promptUser() {
+  console.log(chalk.cyan('\n👋 欢迎使用类型生成工具！让我们开始吧~\n'));
+
+  const questions = [
+    {
+      type: 'input',
+      name: 'url',
+      message: '🌐 请输入API URL地址:',
+      validate: (input) => {
         try {
-          let jsonData;
-          
-          // Determine if source is a URL or a local file
-          if (source.source.startsWith('http://') || source.source.startsWith('https://')) {
-            // Parse headers if provided
-            const headers = source.headers || {};
-            
-            // Fetch the JSON data from URL
-            spinner.text = 'Fetching JSON from URL...';
-            jsonData = await fetchJsonFromUrl(source.source, headers);
+          new URL(input);
+          return true;
+        } catch {
+          return '❌ URL格式不正确，请输入有效的URL';
+        }
+      },
+    },
+    {
+      type: 'input',
+      name: 'name',
+      message: '📝 请输入类型名称:',
+      default: 'ApiTypes',
+      validate: (input) => {
+        if (/^[A-Za-z][A-Za-z0-9]*$/.test(input)) {
+          return true;
+        }
+        return '❌ 类型名称必须以字母开头，且只能包含字母和数字';
+      },
+    },
+    {
+      type: 'list',
+      name: 'path',
+      message: '📂 请选择保存位置:',
+      choices: [
+        { name: '💻 桌面', value: desktopPath },
+        { name: '📁 当前目录', value: currentPath },
+        { name: '🔍 自定义路径', value: 'custom' },
+      ],
+    },
+  ];
+
+  const answers = await inquirer.prompt(questions);
+
+  if (answers.path === 'custom') {
+    const { customPath } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'customPath',
+        message: '📁 请输入保存路径:',
+        default: currentPath,
+        validate: (input) => {
+          if (shell.test('-d', input)) {
+            return true;
+          }
+          return '❌ 路径不存在，请输入有效的路径';
+        },
+      },
+    ]);
+    answers.path = customPath;
+  }
+
+  return answers;
+}
+
+program
+  .version(transformed)
+  .description('🚀 从API URL生成TypeScript类型定义')
+  .option('-u, --url <url>', 'API URL地址')
+  .option('-n, --name <name>', '生成的类型名称')
+  .option('-p, --path <path>', '保存路径')
+  .action(async (options) => {
+    try {
+      const config = options.url ? options : await promptUser();
+
+      const { lines } = await generateTypes(config.url, config.name);
+
+      const spinner = ora('💾 正在保存文件...').start();
+
+      // 使用shelljs创建目录
+      if (!shell.test('-d', config.path)) {
+        shell.mkdir('-p', config.path);
+      }
+
+      const fullPath = path.join(config.path, `${config.name}.ts`);
+      // 使用shelljs写入文件
+      shell.ShellString(lines.join('\n')).to(fullPath);
+
+      spinner.succeed(chalk.green('🎉 文件保存成功！'));
+
+      console.log(chalk.cyan('\n📍 文件保存在:'), fullPath);
+      console.log(chalk.yellow('\n👀 类型定义预览:\n'));
+      console.log(chalk.gray('✨ ----------------------------------------'));
+      console.log(lines.join('\n'));
+      console.log(chalk.gray('✨ ----------------------------------------\n'));
+
+      // 如果安装了VSCode，提供打开选项
+      if (hasVSCode) {
+        const { openFile } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'openFile',
+            message: '🔍 是否要在VSCode中打开生成的文件？',
+            default: false,
+          },
+        ]);
+
+        if (openFile) {
+          // 使用shelljs执行命令
+          const result = shell.exec(`code "${fullPath}"`, { silent: true });
+          if (result.code === 0) {
+            console.log(chalk.green('\n📝 已在VSCode中打开文件'));
           } else {
-            // Read from local file
-            spinner.text = 'Reading local JSON file...';
-            const filePath = path.resolve(process.cwd(), source.source);
-            if (!fs.existsSync(filePath)) {
-              spinner.fail(`File not found: ${filePath}`);
-              continue;
-            }
-            jsonData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            console.log(chalk.yellow('\n⚠️  无法自动打开文件，请手动打开查看'));
           }
-          
-          // Ensure output directory exists
-          const outputDir = path.join(options.output, source.outputDir || '');
-          if (!fs.existsSync(outputDir)) {
-            fs.mkdirSync(outputDir, { recursive: true });
-          }
-          
-          // Generate types with quicktype
-          const lang = source.lang || 'typescript';
-          const jsonInput = quicktype.jsonInputForTargetLanguage(lang);
-          await jsonInput.addSource({
-            name: source.name,
-            samples: [JSON.stringify(jsonData)]
-          });
-          
-          const inputData = new quicktype.InputData();
-          inputData.addInput(jsonInput);
-          
-          const qtOptions = {
-            lang: lang,
-            renderOptions: {
-              just_types: lang === 'typescript',
-              runtime_typecheck: true,
-            }
-          };
-          
-          const result = await quicktype.quicktype(inputData, qtOptions);
-          
-          // Write the generated types to a file
-          const outputFilename = path.join(
-            outputDir, 
-            `${source.name}.${getFileExtension(lang)}`
-          );
-          fs.writeFileSync(outputFilename, result.lines.join('\n'));
-          
-          spinner.succeed(chalk.green(`Types for ${source.name} generated: ${outputFilename}`));
-        } catch (error) {
-          spinner.fail(chalk.red(`Error processing ${source.name}`));
-          console.error('Error:', error.message);
         }
       }
-      
+
+      console.log(chalk.green('\n👋 感谢使用，祝您开发愉快！\n'));
     } catch (error) {
-      console.error(chalk.red('Error processing batch config:'), error.message);
+      console.error(chalk.red('\n❌ 错误:'), error.message);
       process.exit(1);
     }
   });
 
-// Helper function to get the appropriate file extension based on language
-function getFileExtension(language) {
-  const extensions = {
-    typescript: 'ts',
-    javascript: 'js',
-    flow: 'js',
-    swift: 'swift',
-    kotlin: 'kt',
-    java: 'java',
-    go: 'go',
-    rust: 'rs',
-    csharp: 'cs',
-    python: 'py',
-    ruby: 'rb',
-    dart: 'dart',
-  };
-  
-  return extensions[language] || 'txt';
-}
-
-// Helper function to fetch JSON from a URL using native http/https
-function fetchJsonFromUrl(url, headers = {}) {
-  return new Promise((resolve, reject) => {
-    const parsedUrl = new URL(url);
-    const options = {
-      hostname: parsedUrl.hostname,
-      path: parsedUrl.pathname + parsedUrl.search,
-      method: 'GET',
-      headers
-    };
-    
-    const protocol = url.startsWith('https') ? https : http;
-    
-    const req = protocol.request(options, (res) => {
-      let data = '';
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            const jsonData = JSON.parse(data);
-            resolve(jsonData);
-          } catch (error) {
-            reject(new Error('Invalid JSON response'));
-          }
-        } else {
-          reject(new Error(`Request failed with status code: ${res.statusCode}`));
-        }
-      });
-    });
-    
-    req.on('error', (error) => {
-      reject(error);
-    });
-    
-    req.end();
-  });
-}
-
-// Parse command line arguments
 program.parse(process.argv);
-
-// If no arguments provided, show help
-if (!process.argv.slice(2).length) {
-  program.help();
-}
