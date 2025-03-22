@@ -1,7 +1,10 @@
 {
   "$schema": "node_modules/lerna/schemas/lerna-schema.json",
   "npmClient": "pnpm",
-  "useWorkspaces": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "version": "independent",
   "packages": ["packages/*", "apps/*"],
   "ignoreChanges": ["**/node_modules/**", "**/__snapshots__/**"],
