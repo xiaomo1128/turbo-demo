@@ -1,5 +1,5 @@
 {
-  "name": "turbo-monorepo-demo",
+  "name": "@test/hooks",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -9,8 +9,7 @@
   "author": "",
   "license": "ISC",
   "description": "",
-  "devDependencies": {
-    "lerna": "^8.2.1",
-    "turbo": "^2.4.4"
+  "dependencies": {
+    "@test/libs": "workspace:^"
   }
 }

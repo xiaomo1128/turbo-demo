@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "CLI tool to generate types from JSON data",
   "bin": {
-    "trainxm": "./bin/cli.js"
+    "trainxm-cli": "./bin/cli.js"
   },
   "keywords": [
     "quicktype",

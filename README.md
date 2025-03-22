@@ -1,0 +1,1 @@
+- lerna publish 发布所有包(先提交git)
