@@ -1,6 +1,6 @@
 {
   "name": "@test/trainxm-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI tool to generate types from JSON data",
   "bin": {
     "trainxm-cli": "./bin/cli.js"
